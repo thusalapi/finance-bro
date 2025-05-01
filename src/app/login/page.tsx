@@ -1,47 +1,54 @@
 "use client";
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import Link from 'next/link';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import Link from "next/link";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import { AUTH_TEST_IDS } from "@/utils/testIds";
 
 export default function LoginPage() {
   const router = useRouter();
   const { login, isLoading } = useAuth();
-  
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Simple validation
     if (!email || !password) {
-      setError('Email and password are required');
+      setError("Email and password are required");
       return;
     }
-    
+
     try {
       setError(null);
-      
+
       // Login and get token
       const result = await login(email, password);
       console.log("Login successful:", result);
-      
+
       // Navigate to dashboard after successful login
-      router.push('/dashboard');
+      router.push("/dashboard");
     } catch (err: any) {
       console.error("Login error:", err);
-      setError(err.response?.data?.message || 'Login failed. Please check your credentials.');
+      setError(
+        err.response?.data?.message ||
+          "Login failed. Please check your credentials."
+      );
     }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8" data-testid="login-form">
+      <div
+        className="max-w-md w-full space-y-8"
+        data-testid={AUTH_TEST_IDS.loginForm}
+      >
         <div>
           <h1 className="text-center text-3xl font-bold text-gray-900">
             Personal Finance Tracker
@@ -50,17 +57,17 @@ export default function LoginPage() {
             Sign in to your account
           </h2>
         </div>
-        
+
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {error && (
-            <div 
+            <div
               className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded"
-              data-testid="login-error"
+              data-testid={AUTH_TEST_IDS.loginError}
             >
               {error}
             </div>
           )}
-          
+
           <div className="space-y-4">
             <Input
               label="Email Address"
@@ -69,9 +76,9 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="email@example.com"
               required
-              testId="email-input"
+              testId={AUTH_TEST_IDS.emailInput}
             />
-            
+
             <Input
               label="Password"
               type="password"
@@ -79,25 +86,28 @@ export default function LoginPage() {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••"
               required
-              testId="password-input"
+              testId={AUTH_TEST_IDS.passwordInput}
             />
           </div>
-          
+
           <div>
             <Button
               type="submit"
               fullWidth
               isLoading={isLoading}
-              testId="login-button"
+              testId={AUTH_TEST_IDS.loginButton}
             >
               Sign in
             </Button>
           </div>
-          
+
           <div className="text-center">
             <p className="text-sm text-gray-600">
-              Don't have an account?{' '}
-              <Link href="/register" className="font-medium text-blue-600 hover:underline">
+              Don't have an account?{" "}
+              <Link
+                href="/register"
+                className="font-medium text-blue-600 hover:underline"
+              >
                 Create one
               </Link>
             </p>

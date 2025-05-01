@@ -1,18 +1,19 @@
 "use client";
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import { useAuth } from '@/contexts/AuthContext';
-import Link from 'next/link';
-import Button from '@/components/ui/Button';
-import Input from '@/components/ui/Input';
-import { transactions } from '@/utils/apiClient';
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/contexts/AuthContext";
+import Link from "next/link";
+import Button from "@/components/ui/Button";
+import Input from "@/components/ui/Input";
+import { transactions } from "@/utils/apiClient";
+import { TRANSACTION_TEST_IDS } from "@/utils/testIds";
 
 interface Transaction {
   _id: string;
   date: string;
   amount: number;
-  type: 'income' | 'expense';
+  type: "income" | "expense";
   category: string;
   tags?: string[];
   currency: string;
@@ -29,18 +30,18 @@ export default function TransactionsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [transactionsList, setTransactionsList] = useState<Transaction[]>([]);
-  
+
   // Filters
-  const [searchTerm, setSearchTerm] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [dateFilter, setDateFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
-  
+
   useEffect(() => {
     // Redirect to login if not authenticated
     if (!authLoading && !user) {
-      router.push('/login');
+      router.push("/login");
       return;
     }
 
@@ -56,110 +57,121 @@ export default function TransactionsPage() {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const response = await transactions.getAll();
       setTransactionsList(response);
       setIsLoading(false);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load transactions');
+      setError(err.response?.data?.message || "Failed to load transactions");
       setIsLoading(false);
     }
   };
 
   const extractCategories = () => {
     const uniqueCategories = new Set<string>();
-    
-    transactionsList.forEach(transaction => {
+
+    transactionsList.forEach((transaction) => {
       if (transaction.category) {
         uniqueCategories.add(transaction.category);
       }
     });
-    
+
     setCategories(Array.from(uniqueCategories));
   };
 
   const handleDeleteTransaction = async (id: string) => {
     try {
       await transactions.delete(id);
-      setTransactionsList(transactionsList.filter(transaction => transaction._id !== id));
+      setTransactionsList(
+        transactionsList.filter((transaction) => transaction._id !== id)
+      );
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to delete transaction');
+      setError(err.response?.data?.message || "Failed to delete transaction");
     }
   };
-  
+
   const resetFilters = () => {
-    setSearchTerm('');
-    setTypeFilter('');
-    setCategoryFilter('');
-    setDateFilter('');
+    setSearchTerm("");
+    setTypeFilter("");
+    setCategoryFilter("");
+    setDateFilter("");
   };
-  
+
   const applyFilters = async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       let filterData: any = {};
-      
+
       if (typeFilter) filterData.type = typeFilter;
       if (categoryFilter) filterData.category = categoryFilter;
-      
+
       if (dateFilter) {
         const selectedDate = new Date(dateFilter);
         const nextDay = new Date(dateFilter);
         nextDay.setDate(nextDay.getDate() + 1);
-        
-        filterData.startDate = selectedDate.toISOString().split('T')[0];
-        filterData.endDate = nextDay.toISOString().split('T')[0];
+
+        filterData.startDate = selectedDate.toISOString().split("T")[0];
+        filterData.endDate = nextDay.toISOString().split("T")[0];
       }
-      
+
       const response = await transactions.filter(filterData);
       setTransactionsList(response);
       setIsLoading(false);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to filter transactions');
+      setError(err.response?.data?.message || "Failed to filter transactions");
       setIsLoading(false);
     }
   };
-  
+
   useEffect(() => {
     if (typeFilter || categoryFilter || dateFilter) {
       applyFilters();
     }
   }, [typeFilter, categoryFilter, dateFilter]);
-  
+
   // Apply search term filter locally
-  const filteredTransactions = transactionsList.filter(transaction => {
+  const filteredTransactions = transactionsList.filter((transaction) => {
     // Skip search if empty
     if (!searchTerm) return true;
-    
+
     // Check if any field contains the search term
     return (
       transaction.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      transaction.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      transaction.tags?.some((tag) =>
+        tag.toLowerCase().includes(searchTerm.toLowerCase())
+      ) ||
       transaction.amount.toString().includes(searchTerm)
     );
   });
 
   // Show loading state while checking authentication
   if (authLoading) {
-    return <div className="flex justify-center p-8">Checking authentication...</div>;
+    return (
+      <div className="flex justify-center p-8">Checking authentication...</div>
+    );
   }
-  
+
   // Don't render anything if not authenticated (will redirect)
   if (!user) {
     return null;
   }
-  
+
   // Show loading state while fetching transactions
   if (isLoading) {
     return (
-      <div className="flex justify-center items-center h-64">
-        <div className="text-lg font-medium text-gray-500">Loading your transactions...</div>
+      <div
+        className="flex justify-center items-center h-64"
+        data-testid="transactions-loading"
+      >
+        <div className="text-lg font-medium text-gray-500">
+          Loading your transactions...
+        </div>
       </div>
     );
   }
-  
+
   // Show error state
   if (error) {
     return (
@@ -174,19 +186,27 @@ export default function TransactionsPage() {
   }
 
   return (
-    <div className="space-y-6" data-testid="transactions-page">
+    <div
+      className="space-y-6"
+      data-testid={TRANSACTION_TEST_IDS.transactionsPage}
+    >
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold" data-testid="transactions-title">Transactions</h1>
-        <Button 
-          onClick={() => router.push('/transactions/new')} 
-          testId="new-transaction-button"
+        <h1
+          className="text-2xl font-bold"
+          data-testid={TRANSACTION_TEST_IDS.transactionsTitle}
+        >
+          Transactions
+        </h1>
+        <Button
+          onClick={() => router.push("/transactions/new")}
+          testId={TRANSACTION_TEST_IDS.newTransactionButton}
         >
           New Transaction
         </Button>
       </div>
-      
+
       {/* Filters */}
-      <div 
+      <div
         className="bg-white p-6 rounded-lg shadow space-y-4"
         data-testid="filters-section"
       >
@@ -227,8 +247,10 @@ export default function TransactionsPage() {
               data-testid="filter-category"
             >
               <option value="">All Categories</option>
-              {categories.map(category => (
-                <option key={category} value={category}>{category}</option>
+              {categories.map((category) => (
+                <option key={category} value={category}>
+                  {category}
+                </option>
               ))}
             </select>
           </div>
@@ -243,8 +265,8 @@ export default function TransactionsPage() {
           </div>
         </div>
         <div className="flex justify-end">
-          <Button 
-            onClick={resetFilters} 
+          <Button
+            onClick={resetFilters}
             variant="secondary"
             testId="reset-filters-button"
           >
@@ -252,13 +274,13 @@ export default function TransactionsPage() {
           </Button>
         </div>
       </div>
-      
+
       {/* Transactions Table */}
       <div className="bg-white p-6 rounded-lg shadow">
         {filteredTransactions.length > 0 ? (
-          <div 
+          <div
             className="overflow-x-auto"
-            data-testid="transactions-list"
+            data-testid={TRANSACTION_TEST_IDS.transactionsList}
           >
             <table className="w-full">
               <thead className="text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -272,51 +294,64 @@ export default function TransactionsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200">
                 {filteredTransactions.map((transaction) => (
-                  <tr 
-                    key={transaction._id} 
-                    data-testid={`transaction-row-${transaction._id}`}
+                  <tr
+                    key={transaction._id}
+                    data-testid={TRANSACTION_TEST_IDS.transactionItem(
+                      transaction._id
+                    )}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
                       {new Date(transaction.date).toLocaleDateString()}
                     </td>
                     <td className="px-4 py-3">
-                      <span 
+                      <span
                         className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 
-                          ${transaction.type === 'income' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'}`}
+                          ${
+                            transaction.type === "income"
+                              ? "bg-green-100 text-green-800"
+                              : "bg-red-100 text-red-800"
+                          }`}
                       >
                         {transaction.category}
                       </span>
                     </td>
                     <td className="px-4 py-3">
-                      {transaction.recurring?.isRecurring ? 
+                      {transaction.recurring?.isRecurring ? (
                         <span className="text-purple-600 text-xs font-medium">
                           {transaction.recurring.frequency}
-                        </span> : 
-                        'No'
-                      }
+                        </span>
+                      ) : (
+                        "No"
+                      )}
                     </td>
-                    <td 
+                    <td
                       className={`px-4 py-3 text-right whitespace-nowrap font-medium ${
-                        transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
+                        transaction.type === "income"
+                          ? "text-green-600"
+                          : "text-red-600"
                       }`}
                     >
-                      {transaction.type === 'income' ? '+' : '-'}
+                      {transaction.type === "income" ? "+" : "-"}
                       {transaction.amount.toFixed(2)} {transaction.currency}
                     </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap space-x-2">
                       <button
-                        onClick={() => router.push(`/transactions/${transaction._id}`)}
+                        onClick={() =>
+                          router.push(`/transactions/${transaction._id}`)
+                        }
                         className="text-blue-600 hover:text-blue-900"
-                        data-testid={`view-transaction-${transaction._id}`}
+                        data-testid={TRANSACTION_TEST_IDS.editTransaction(
+                          transaction._id
+                        )}
                       >
                         Edit
                       </button>
                       <button
                         onClick={() => handleDeleteTransaction(transaction._id)}
                         className="text-red-600 hover:text-red-900"
-                        data-testid={`delete-transaction-${transaction._id}`}
+                        data-testid={TRANSACTION_TEST_IDS.deleteTransaction(
+                          transaction._id
+                        )}
                       >
                         Delete
                       </button>
@@ -327,11 +362,12 @@ export default function TransactionsPage() {
             </table>
           </div>
         ) : (
-          <div 
+          <div
             className="text-center py-8 text-gray-500"
             data-testid="no-transactions"
           >
-            No transactions found. Try adjusting your filters or add a new transaction.
+            No transactions found. Try adjusting your filters or add a new
+            transaction.
           </div>
         )}
       </div>
