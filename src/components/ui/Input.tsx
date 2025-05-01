@@ -1,42 +1,48 @@
-import React from 'react';
+import React, { InputHTMLAttributes } from 'react';
+import classNames from 'classnames';
 
-interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
+interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
   testId?: string;
 }
 
-const Input: React.FC<InputProps> = ({ 
-  label, 
-  error, 
-  className = '', 
+const Input: React.FC<InputProps> = ({
+  label,
+  error,
+  className,
   testId,
-  ...props 
+  ...props
 }) => {
-  const inputId = props.id || `input-${Math.random().toString(36).substring(2, 9)}`;
-  
+  const inputClasses = classNames(
+    'block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500',
+    {
+      'border-red-300 focus:border-red-500 focus:ring-red-500': error,
+    },
+    className
+  );
+
   return (
-    <div>
+    <div className="w-full">
       {label && (
         <label 
-          htmlFor={inputId} 
+          htmlFor={props.id || props.name} 
           className="block text-sm font-medium text-gray-700 mb-1"
         >
           {label}
         </label>
       )}
+      
       <input
-        id={inputId}
-        className={`
-          w-full rounded-md border ${error ? 'border-red-500' : 'border-gray-300'} 
-          p-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500
-          ${className}
-        `}
+        className={inputClasses}
         data-testid={testId}
         {...props}
       />
+      
       {error && (
-        <p className="mt-1 text-sm text-red-600" data-testid={`${testId}-error`}>{error}</p>
+        <p className="mt-1 text-sm text-red-600" data-testid={`${testId}-error`}>
+          {error}
+        </p>
       )}
     </div>
   );

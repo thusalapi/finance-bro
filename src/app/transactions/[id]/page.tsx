@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 import TransactionForm from "@/components/forms/TransactionForm";
 
-export default function NewTransactionPage() {
+export default function EditTransactionPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const { user, isLoading } = useAuth();
+  const transactionId = params.id;
   
   useEffect(() => {
     // Redirect to login if not authenticated
@@ -31,12 +32,12 @@ export default function NewTransactionPage() {
   }
   
   return (
-    <div className="space-y-6" data-testid="add-transaction-page">
+    <div className="space-y-6" data-testid="edit-transaction-page">
       <div className="flex items-center">
-        <h1 className="text-2xl font-bold">Add New Transaction</h1>
+        <h1 className="text-2xl font-bold">Edit Transaction</h1>
       </div>
       
-      <TransactionForm />
+      <TransactionForm transactionId={transactionId} isEdit={true} />
     </div>
   );
 }

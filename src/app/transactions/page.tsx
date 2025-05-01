@@ -6,16 +6,20 @@ import { useAuth } from '@/contexts/AuthContext';
 import Link from 'next/link';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
+import { transactions } from '@/utils/apiClient';
 
 interface Transaction {
-  id: string;
+  _id: string;
   date: string;
-  description: string;
   amount: number;
   type: 'income' | 'expense';
   category: string;
   tags?: string[];
-  notes?: string;
+  currency: string;
+  recurring?: {
+    isRecurring: boolean;
+    frequency?: string;
+  };
 }
 
 export default function TransactionsPage() {
@@ -24,20 +28,15 @@ export default function TransactionsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [transactionsList, setTransactionsList] = useState<Transaction[]>([]);
   
   // Filters
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [categories, setCategories] = useState<string[]>([]);
   
-  // Available categories for filtering
-  const categories = [
-    'Food', 'Transportation', 'Housing', 'Utilities', 
-    'Entertainment', 'Healthcare', 'Income', 'Other'
-  ];
-
   useEffect(() => {
     // Redirect to login if not authenticated
     if (!authLoading && !user) {
@@ -48,6 +47,8 @@ export default function TransactionsPage() {
     // Load transactions if user is authenticated
     if (user) {
       loadTransactions();
+      // Extract unique categories from transactions for filter dropdown
+      extractCategories();
     }
   }, [user, authLoading, router]);
 
@@ -56,105 +57,34 @@ export default function TransactionsPage() {
       setIsLoading(true);
       setError(null);
       
-      // In a real application, this would be an API call
-      // For now, we'll simulate loading with a timeout and mock data
-      setTimeout(() => {
-        const mockTransactions = [
-          { 
-            id: '1', 
-            date: '2023-04-29', 
-            description: 'Salary Deposit', 
-            amount: 5000, 
-            type: 'income',
-            category: 'Income',
-            notes: 'Monthly salary',
-            tags: ['income', 'salary']
-          },
-          { 
-            id: '2', 
-            date: '2023-04-28', 
-            description: 'Grocery Shopping', 
-            amount: 125.50, 
-            type: 'expense',
-            category: 'Food',
-            notes: 'Weekly grocery run',
-            tags: ['food', 'groceries']
-          },
-          { 
-            id: '3', 
-            date: '2023-04-27', 
-            description: 'Electric Bill', 
-            amount: 95.40, 
-            type: 'expense',
-            category: 'Utilities',
-            notes: 'Monthly electric bill',
-            tags: ['bills', 'utilities']
-          },
-          { 
-            id: '4', 
-            date: '2023-04-26', 
-            description: 'Subscription', 
-            amount: 12.99, 
-            type: 'expense',
-            category: 'Entertainment',
-            notes: 'Streaming service',
-            tags: ['entertainment', 'subscription']
-          },
-          { 
-            id: '5', 
-            date: '2023-04-25', 
-            description: 'Gas', 
-            amount: 45.30, 
-            type: 'expense',
-            category: 'Transportation',
-            notes: 'Filled up the car',
-            tags: ['car', 'transportation']
-          },
-          { 
-            id: '6', 
-            date: '2023-04-24', 
-            description: 'Dinner Out', 
-            amount: 65.20, 
-            type: 'expense',
-            category: 'Food',
-            notes: 'Dinner with friends',
-            tags: ['food', 'eating out']
-          },
-          { 
-            id: '7', 
-            date: '2023-04-23', 
-            description: 'Freelance Work', 
-            amount: 350, 
-            type: 'income',
-            category: 'Income',
-            notes: 'Website design project',
-            tags: ['income', 'freelance']
-          },
-          { 
-            id: '8', 
-            date: '2023-04-22', 
-            description: 'Doctor Visit', 
-            amount: 25, 
-            type: 'expense',
-            category: 'Healthcare',
-            notes: 'Co-pay for checkup',
-            tags: ['health', 'medical']
-          },
-        ];
-        
-        setTransactions(mockTransactions);
-        setIsLoading(false);
-      }, 1000);
-      
-    } catch (err) {
-      setError('Failed to load transactions');
+      const response = await transactions.getAll();
+      setTransactionsList(response);
+      setIsLoading(false);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to load transactions');
       setIsLoading(false);
     }
   };
 
-  const handleDeleteTransaction = (id: string) => {
-    // In a real app, this would make an API call
-    setTransactions(transactions.filter(transaction => transaction.id !== id));
+  const extractCategories = () => {
+    const uniqueCategories = new Set<string>();
+    
+    transactionsList.forEach(transaction => {
+      if (transaction.category) {
+        uniqueCategories.add(transaction.category);
+      }
+    });
+    
+    setCategories(Array.from(uniqueCategories));
+  };
+
+  const handleDeleteTransaction = async (id: string) => {
+    try {
+      await transactions.delete(id);
+      setTransactionsList(transactionsList.filter(transaction => transaction._id !== id));
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to delete transaction');
+    }
   };
   
   const resetFilters = () => {
@@ -164,31 +94,51 @@ export default function TransactionsPage() {
     setDateFilter('');
   };
   
-  // Apply filters to transactions
-  const filteredTransactions = transactions.filter(transaction => {
-    // Search term filter
-    if (searchTerm && 
-        !transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) &&
-        !transaction.notes?.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
+  const applyFilters = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      
+      let filterData: any = {};
+      
+      if (typeFilter) filterData.type = typeFilter;
+      if (categoryFilter) filterData.category = categoryFilter;
+      
+      if (dateFilter) {
+        const selectedDate = new Date(dateFilter);
+        const nextDay = new Date(dateFilter);
+        nextDay.setDate(nextDay.getDate() + 1);
+        
+        filterData.startDate = selectedDate.toISOString().split('T')[0];
+        filterData.endDate = nextDay.toISOString().split('T')[0];
+      }
+      
+      const response = await transactions.filter(filterData);
+      setTransactionsList(response);
+      setIsLoading(false);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to filter transactions');
+      setIsLoading(false);
     }
-    
-    // Type filter
-    if (typeFilter && transaction.type !== typeFilter) {
-      return false;
+  };
+  
+  useEffect(() => {
+    if (typeFilter || categoryFilter || dateFilter) {
+      applyFilters();
     }
+  }, [typeFilter, categoryFilter, dateFilter]);
+  
+  // Apply search term filter locally
+  const filteredTransactions = transactionsList.filter(transaction => {
+    // Skip search if empty
+    if (!searchTerm) return true;
     
-    // Category filter
-    if (categoryFilter && transaction.category !== categoryFilter) {
-      return false;
-    }
-    
-    // Date filter - simplified for mock data
-    if (dateFilter && !transaction.date.includes(dateFilter)) {
-      return false;
-    }
-    
-    return true;
+    // Check if any field contains the search term
+    return (
+      transaction.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      transaction.tags?.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      transaction.amount.toString().includes(searchTerm)
+    );
   });
 
   // Show loading state while checking authentication
@@ -314,8 +264,8 @@ export default function TransactionsPage() {
               <thead className="text-xs font-medium text-gray-500 uppercase tracking-wider">
                 <tr>
                   <th className="px-4 py-2 text-left">Date</th>
-                  <th className="px-4 py-2 text-left">Description</th>
                   <th className="px-4 py-2 text-left">Category</th>
+                  <th className="px-4 py-2 text-left">Recurring</th>
                   <th className="px-4 py-2 text-right">Amount</th>
                   <th className="px-4 py-2 text-right">Actions</th>
                 </tr>
@@ -323,13 +273,12 @@ export default function TransactionsPage() {
               <tbody className="divide-y divide-gray-200">
                 {filteredTransactions.map((transaction) => (
                   <tr 
-                    key={transaction.id} 
-                    data-testid={`transaction-row-${transaction.id}`}
+                    key={transaction._id} 
+                    data-testid={`transaction-row-${transaction._id}`}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">
                       {new Date(transaction.date).toLocaleDateString()}
                     </td>
-                    <td className="px-4 py-3">{transaction.description}</td>
                     <td className="px-4 py-3">
                       <span 
                         className={`inline-flex rounded-full px-2 text-xs font-semibold leading-5 
@@ -340,18 +289,34 @@ export default function TransactionsPage() {
                         {transaction.category}
                       </span>
                     </td>
+                    <td className="px-4 py-3">
+                      {transaction.recurring?.isRecurring ? 
+                        <span className="text-purple-600 text-xs font-medium">
+                          {transaction.recurring.frequency}
+                        </span> : 
+                        'No'
+                      }
+                    </td>
                     <td 
                       className={`px-4 py-3 text-right whitespace-nowrap font-medium ${
                         transaction.type === 'income' ? 'text-green-600' : 'text-red-600'
                       }`}
                     >
-                      {transaction.type === 'income' ? '+' : '-'}${transaction.amount.toFixed(2)}
+                      {transaction.type === 'income' ? '+' : '-'}
+                      {transaction.amount.toFixed(2)} {transaction.currency}
                     </td>
-                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                    <td className="px-4 py-3 text-right whitespace-nowrap space-x-2">
                       <button
-                        onClick={() => handleDeleteTransaction(transaction.id)}
+                        onClick={() => router.push(`/transactions/${transaction._id}`)}
+                        className="text-blue-600 hover:text-blue-900"
+                        data-testid={`view-transaction-${transaction._id}`}
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteTransaction(transaction._id)}
                         className="text-red-600 hover:text-red-900"
-                        data-testid={`delete-transaction-${transaction.id}`}
+                        data-testid={`delete-transaction-${transaction._id}`}
                       >
                         Delete
                       </button>
