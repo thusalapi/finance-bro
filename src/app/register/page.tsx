@@ -1,12 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/contexts/AuthContext";
 import Link from "next/link";
 import Button from "@/components/ui/Button";
 import Input from "@/components/ui/Input";
 import { AUTH_TEST_IDS } from "@/utils/testIds";
+import * as yup from "yup";
+
+const validationSchema = yup.object().shape({
+  name: yup.string().trim().required("Name is required"),
+  email: yup.string().email("Email is invalid").required("Email is required"),
+  password: yup
+    .string()
+    .min(6, "Password must be at least 6 characters")
+    .required("Password is required"),
+  confirmPassword: yup
+    .string()
+    .oneOf([yup.ref("password")], "Passwords do not match")
+    .required("Confirm Password is required"),
+});
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -18,39 +32,130 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{ [key: string]: string }>({});
+  const [touchedFields, setTouchedFields] = useState<{
+    [key: string]: boolean;
+  }>({
+    name: false,
+    email: false,
+    password: false,
+    confirmPassword: false,
+  });
 
-  const validateForm = () => {
-    const errors: { [key: string]: string } = {};
+  const validateField = async (field: string, value: string) => {
+    if (!touchedFields[field]) return;
 
-    if (!name.trim()) {
-      errors.name = "Name is required";
+    try {
+      // Create a partial schema for the specific field
+      const fieldSchema = yup.object().shape({
+        [field]: validationSchema.fields[field],
+      });
+
+      // Validate just this field
+      await fieldSchema.validate({ [field]: value }, { abortEarly: false });
+
+      // If validation passes, remove any error for this field
+      setFieldErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors[field];
+        return newErrors;
+      });
+    } catch (error) {
+      if (error instanceof yup.ValidationError) {
+        // Extract the error message for this field
+        const fieldError = error.inner.find(
+          (err) => err.path === field
+        )?.message;
+
+        if (fieldError) {
+          setFieldErrors((prev) => ({
+            ...prev,
+            [field]: fieldError,
+          }));
+        }
+      }
     }
 
-    if (!email.trim()) {
-      errors.email = "Email is required";
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      errors.email = "Email is invalid";
+    // Special case for confirmPassword when password changes
+    if (field === "password" && touchedFields.confirmPassword) {
+      validateField("confirmPassword", confirmPassword);
     }
+  };
 
-    if (!password) {
-      errors.password = "Password is required";
-    } else if (password.length < 6) {
-      errors.password = "Password must be at least 6 characters";
+  // Run validation whenever a field value changes
+  useEffect(() => {
+    validateField("name", name);
+  }, [name]);
+
+  useEffect(() => {
+    validateField("email", email);
+  }, [email]);
+
+  useEffect(() => {
+    validateField("password", password);
+  }, [password]);
+
+  useEffect(() => {
+    validateField("confirmPassword", confirmPassword);
+  }, [confirmPassword]);
+
+  const validateForm = async () => {
+    // Mark all fields as touched
+    setTouchedFields({
+      name: true,
+      email: true,
+      password: true,
+      confirmPassword: true,
+    });
+
+    try {
+      await validationSchema.validate(
+        {
+          name,
+          email,
+          password,
+          confirmPassword,
+        },
+        { abortEarly: false }
+      );
+
+      setFieldErrors({});
+      return true;
+    } catch (error) {
+      if (error instanceof yup.ValidationError) {
+        // Transform Yup's errors into our fieldErrors format
+        const newErrors: { [key: string]: string } = {};
+
+        error.inner.forEach((err) => {
+          if (err.path) {
+            newErrors[err.path] = err.message;
+          }
+        });
+
+        setFieldErrors(newErrors);
+      }
+      return false;
     }
+  };
 
-    if (password !== confirmPassword) {
-      errors.confirmPassword = "Passwords do not match";
-    }
-
-    setFieldErrors(errors);
-    return Object.keys(errors).length === 0;
+  const handleBlur = (field: string) => {
+    setTouchedFields({ ...touchedFields, [field]: true });
+    validateField(
+      field,
+      field === "name"
+        ? name
+        : field === "email"
+        ? email
+        : field === "password"
+        ? password
+        : confirmPassword
+    );
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Form validation
-    const isValid = validateForm();
+    const isValid = await validateForm();
     if (!isValid) return;
 
     try {
@@ -94,6 +199,7 @@ export default function RegisterPage() {
               label="Full Name"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              onBlur={() => handleBlur("name")}
               placeholder="John Doe"
               error={fieldErrors.name}
               required
@@ -105,6 +211,7 @@ export default function RegisterPage() {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => handleBlur("email")}
               placeholder="email@example.com"
               error={fieldErrors.email}
               required
@@ -116,6 +223,7 @@ export default function RegisterPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              onBlur={() => handleBlur("password")}
               placeholder="••••••••"
               error={fieldErrors.password}
               required
@@ -127,6 +235,7 @@ export default function RegisterPage() {
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
+              onBlur={() => handleBlur("confirmPassword")}
               placeholder="••••••••"
               error={fieldErrors.confirmPassword}
               required
