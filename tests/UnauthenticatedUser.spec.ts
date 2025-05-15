@@ -8,3 +8,7 @@ test('test', async ({ page }) => {
   await page.getByTestId('input-password-input').fill('qqqqqqqq');
   await page.getByTestId('button-login-button').click();
 });
+
+test('unauthorized', async ({ page }) => {
+  await page.goto('http://localhost:3000/login');
+});
